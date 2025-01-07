@@ -34,9 +34,10 @@ public class GameOverManager : MonoBehaviour
         pressText.gameObject.SetActive(true);    // Muestra el mensaje de "Presionar"
         restartButton.gameObject.SetActive(true); // Muestra el botón de reiniciar
 
-        // Reproduce el sonido de game over
+        // Actualiza el texto del Best Score al mostrar Game Over
         if (GameManager.instance != null)
         {
+            GameManager.instance.LoadBestScore();
             GameManager.instance.PlaySound(GameManager.instance.gameOverSound); // Reproduce el sonido
         }
     }
@@ -77,9 +78,6 @@ public class GameOverManager : MonoBehaviour
     // Método para resetear los estados del juego
     private void ResetGame()
     {
-        // Resetea cualquier otro estado relevante
-        // Ejemplo: puntuación, vidas, etc.
-        // En este caso, como no hay un GameManager, simplemente reinicia los tubos
         pipeSpawner.ResetSpawner();
         BirdController bird = FindObjectOfType<BirdController>();
         if (bird != null)

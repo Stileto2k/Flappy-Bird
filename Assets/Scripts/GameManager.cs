@@ -22,13 +22,16 @@ public class GameManager : MonoBehaviour
         if (instance == null)
         {
             instance = this;
+            DontDestroyOnLoad(gameObject); // Manté el GameManager entre escenes
         }
-        else if (instance != this)
+        else
         {
             Destroy(gameObject);
+            return;
         }
 
-        DontDestroyOnLoad(gameObject); // Manté el GameManager entre escenes
+        // Carreguem el millor puntatge quan es crea el GameManager
+        LoadBestScore();
     }
 
     void Start()
@@ -36,22 +39,46 @@ public class GameManager : MonoBehaviour
         // Asegurem que els textos estiguin assignats després de carregar la nova escena
         if (scoreText == null || bestScoreText == null)
         {
-            FindUIElements(); // Busquem els textos en la nova escena si no estan assignats
+            FindUIElements();
         }
 
         audioSource = gameObject.AddComponent<AudioSource>();
         audioSource.playOnAwake = false;
 
-        LoadBestScore(); // Carreguem el millor puntatge guardat
-        UpdateScore(0);  // Actualitzem la puntuació a 0 al començar
+        UpdateScore(0);  // Inicialitzem el marcador a 0
+        UpdateBestScoreText();  // Actualitzem el millor marcador en el text
     }
 
-    // Mètode per trobar i assignar els textos de puntuació si no estan assignats
+    void OnEnable()
+    {
+        // Ens subscrivim a l'esdeveniment de càrrega d'escena
+        SceneManager.sceneLoaded += OnSceneLoaded;
+    }
+
+    void OnDisable()
+    {
+        // Ens desubscrivim per evitar errors
+        SceneManager.sceneLoaded -= OnSceneLoaded;
+    }
+
+    // S'executa quan es carrega una nova escena
+    private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        FindUIElements(); // Tornem a buscar els textos
+        ResetScore();     // Reiniciem el marcador
+        UpdateBestScoreText(); // Actualitzem el millor marcador
+    }
+
+    // Mètode per trobar i assignar els textos de puntuació
     private void FindUIElements()
     {
-        scoreText = FindObjectOfType<TMP_Text>(); // Assignem el text de la puntuació (si només hi ha un, el trobem)
-        bestScoreText = FindObjectOfType<TMP_Text>(); // Assignem el text del millor puntatge (assumim que també n'hi ha un)
-        
+        TMP_Text[] texts = FindObjectsOfType<TMP_Text>();
+        foreach (TMP_Text text in texts)
+        {
+            if (text.name == "ScoreText") scoreText = text;
+            if (text.name == "BestScoreText") bestScoreText = text;
+        }
+
         if (scoreText == null || bestScoreText == null)
         {
             Debug.LogError("Els textos de puntuació no es troben a l'escena actual!");
@@ -62,6 +89,7 @@ public class GameManager : MonoBehaviour
     public void UpdateScore(int points)
     {
         score += points;
+
         if (scoreText != null)
             scoreText.text = "Score: " + score;
 
@@ -69,10 +97,37 @@ public class GameManager : MonoBehaviour
         if (score > bestScore)
         {
             bestScore = score;
-            if (bestScoreText != null)
-                bestScoreText.text = "Best Score: " + bestScore;
             SaveBestScore(); // Guardem el millor puntatge
+            UpdateBestScoreText(); // Actualitzem el text de millor puntuació
         }
+    }
+
+    // Mètode per reiniciar la puntuació
+    private void ResetScore()
+    {
+        score = 0; // Reiniciem la puntuació
+        if (scoreText != null)
+            scoreText.text = "Score: " + score;
+    }
+
+    // Mètode per guardar el millor puntatge
+    private void SaveBestScore()
+    {
+        PlayerPrefs.SetInt("BestScore", bestScore);
+        PlayerPrefs.Save();
+    }
+
+    // Mètode per carregar el millor puntatge
+    public void LoadBestScore()
+    {
+        bestScore = PlayerPrefs.GetInt("BestScore", 0); // Carrega 0 si no hi ha cap valor guardat
+    }
+
+    // Actualitza el text de millor puntuació
+    private void UpdateBestScoreText()
+    {
+        if (bestScoreText != null)
+            bestScoreText.text = "Best Score: " + bestScore;
     }
 
     // Mètode cridat quan l'ocell passa entre els tubs
@@ -82,56 +137,11 @@ public class GameManager : MonoBehaviour
         PlaySound(pointSound); // Reprodueix el so de puntatge
     }
 
-    // Mètode per guardar el millor puntatge
-    private void SaveBestScore()
-    {
-        PlayerPrefs.SetInt("BestScore", bestScore);
-        PlayerPrefs.Save(); // Guardem les dades persistentment
-    }
-
-    // Mètode per carregar el millor puntatge
-    private void LoadBestScore()
-    {
-        bestScore = PlayerPrefs.GetInt("BestScore", 0); // Si no hi ha cap valor guardat, carrega 0
-        if (bestScoreText != null)
-            bestScoreText.text = "Best Score: " + bestScore;
-    }
-
     // Mètode per reiniciar el joc
     public void RestartGame()
     {
-        score = 0; // Reiniciem la puntuació
-        UpdateScore(0); // Actualitzem la puntuació en pantalla
-
-        // Reiniciem l'estat de l'ocell i els tubs
-        ResetBird();
-        ResetPipeSpawner();
-
-        // Reiniciem el temps (en cas que es pausés en game over)
-        Time.timeScale = 1f;
-
-        // Carreguem l'escena actual per reiniciar el nivell
+        // Reiniciem l'escena actual
         SceneManager.LoadScene(SceneManager.GetActiveScene().name);
-    }
-
-    // Mètode per reiniciar l'ocell
-    private void ResetBird()
-    {
-        BirdController bird = FindObjectOfType<BirdController>();
-        if (bird != null)
-        {
-            bird.ResetBird(); // Reiniciem l'estat de l'ocell
-        }
-    }
-
-    // Mètode per reiniciar el spawner de tubs
-    private void ResetPipeSpawner()
-    {
-        PipeSpawner pipeSpawner = FindObjectOfType<PipeSpawner>();
-        if (pipeSpawner != null)
-        {
-            pipeSpawner.ResetSpawner(); // Reiniciem el spawner de tubs
-        }
     }
 
     // Mètode per mostrar la pantalla de Game Over
@@ -145,6 +155,7 @@ public class GameManager : MonoBehaviour
     // Mètode per reproduir sons
     public void PlaySound(AudioClip clip)
     {
+        if (clip == null) return;
         audioSource.clip = clip;
         audioSource.Play();
     }
